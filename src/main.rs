@@ -7,6 +7,7 @@ use std::os::unix::{
 };
 use std::path::Path;
 
+use input::event::Event::Gesture;
 use input::{Libinput, LibinputInterface};
 use libc::{O_RDONLY, O_RDWR, O_WRONLY};
 use nix::poll::{poll, PollFd, PollFlags};
@@ -39,7 +40,13 @@ fn main() -> io::Result<()> {
     while poll(&mut [pollfd], -1).is_ok() {
         input.dispatch().unwrap();
         for event in &mut input {
-            println!("Got event: {:?}", event);
+            match event {
+                Gesture(_) => {
+                    println!("Gesture event!");
+                    println!("Got event: {:?}", event);
+                }
+                _ => (),
+            }
         }
     }
 
