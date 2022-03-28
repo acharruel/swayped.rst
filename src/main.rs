@@ -1,3 +1,5 @@
+mod gesture;
+
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::os::unix::prelude::AsRawFd;
@@ -11,6 +13,8 @@ use input::event::Event::Gesture;
 use input::{Libinput, LibinputInterface};
 use libc::{O_RDONLY, O_RDWR, O_WRONLY};
 use nix::poll::{poll, PollFd, PollFlags};
+
+use gesture::*;
 
 struct Interface;
 
@@ -37,13 +41,14 @@ fn main() -> io::Result<()> {
 
     let pollfd = PollFd::new(input.as_raw_fd(), PollFlags::POLLIN);
 
+    let mut gesture: Option<SwaypedGesture> = None;
+
     while poll(&mut [pollfd], -1).is_ok() {
         input.dispatch().unwrap();
         for event in &mut input {
             match event {
-                Gesture(_) => {
-                    println!("Gesture event!");
-                    println!("Got event: {:?}", event);
+                Gesture(gesture_event) => {
+                    gesture_handle_event(gesture_event, &mut gesture);
                 }
                 _ => (),
             }
