@@ -61,9 +61,7 @@ pub fn swipe_process(dx: f64, dy: f64, finger_count: i32) {
 
 fn swipe_detected(o: Option<SwaypedSwipeDir>, finger_count: i32) {
     match o {
-        Some(sw) => {
-            sw.process_command(finger_count);
-        }
+        Some(sw) => sw.process_command(finger_count),
         None => (),
     }
 }
