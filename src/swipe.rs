@@ -14,7 +14,7 @@ enum SwaypedSwipeDir {
 impl SwaypedSwipeDir {
     fn process_command(self, _finger_count: i32) {
         let cmd: SwaypedCommand = match self {
-            SwaypedSwipeDir::UP => SwaypedCommand::WorkspaceBackAndForth,
+            SwaypedSwipeDir::UP => SwaypedCommand::WorkspaceNew,
             SwaypedSwipeDir::DOWN => SwaypedCommand::WorkspaceBackAndForth,
             SwaypedSwipeDir::LEFT => SwaypedCommand::WorkspacePrev,
             SwaypedSwipeDir::RIGHT => SwaypedCommand::WorkspaceNext,
