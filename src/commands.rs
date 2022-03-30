@@ -1,4 +1,3 @@
-use std::cmp;
 use swayipc::{Connection, Fallible};
 
 pub enum SwaypedCommand {
@@ -8,23 +7,20 @@ pub enum SwaypedCommand {
     WorkspaceNew,
 }
 
-#[allow(unused_must_use)]
 impl SwaypedCommand {
     pub fn process_command(self) {
-        match self {
-            SwaypedCommand::WorkspacePrev => {
-                sway_send_command(String::from("workspace prev"));
-            }
-            SwaypedCommand::WorkspaceNext => {
-                sway_send_command(String::from("workspace next"));
-            }
+        let res: Fallible<()> = match self {
+            SwaypedCommand::WorkspacePrev => sway_send_command(String::from("workspace prev")),
+            SwaypedCommand::WorkspaceNext => sway_send_command(String::from("workspace next")),
             SwaypedCommand::WorkspaceBackAndForth => {
-                sway_send_command(String::from("workspace back_and_forth"));
+                sway_send_command(String::from("workspace back_and_forth"))
             }
-            SwaypedCommand::WorkspaceNew => {
-                sway_new_workspaces();
-            }
+            SwaypedCommand::WorkspaceNew => sway_new_workspaces(),
         };
+        match res {
+            Ok(_) => (),
+            Err(e) => println!("Failed to send sway command: '{}'", e),
+        }
     }
 }
 
@@ -40,16 +36,26 @@ fn sway_send_command(cmd: String) -> Fallible<()> {
     Ok(())
 }
 
-#[allow(unused_must_use)]
 fn sway_new_workspaces() -> Fallible<()> {
     let mut connection = Connection::new()?;
-    let mut max = 0;
+    let mut max = 1;
+    let mut workspaces: Vec<i32> = Vec::new();
 
     for w in connection.get_workspaces()? {
-        max = cmp::max(max, w.num);
+        workspaces.push(w.num);
     }
 
-    sway_send_command(format!("workspace {}", max + 1));
+    workspaces.sort();
+
+    for w in workspaces {
+        if w == max {
+            max = max + 1;
+        } else {
+            break;
+        }
+    }
+
+    sway_send_command(format!("workspace {}", max))?;
 
     Ok(())
 }
