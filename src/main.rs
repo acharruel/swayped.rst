@@ -1,4 +1,6 @@
+mod commands;
 mod gesture;
+mod swipe;
 
 use std::fs::{File, OpenOptions};
 use std::io;

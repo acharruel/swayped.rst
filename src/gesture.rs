@@ -1,3 +1,4 @@
+use crate::swipe::swipe_process;
 use input::event::{
     gesture::{
         GestureEventCoordinates, GestureEventTrait, GestureSwipeEndEvent, GestureSwipeEvent,
@@ -14,7 +15,6 @@ pub enum SwaypedGesture {
 
 impl SwaypedGesture {
     fn begin(&mut self) {
-        println!("begin");
         match self {
             SwaypedGesture::Swipe {
                 dx,
@@ -43,16 +43,13 @@ impl SwaypedGesture {
         }
     }
 
-    fn end(&self, event: GestureSwipeEndEvent) {
+    fn end(&self, _event: GestureSwipeEndEvent) {
         match self {
             SwaypedGesture::Swipe {
                 dx,
                 dy,
                 finger_count,
-            } => {
-                println!("end: dx {} dy {} finger_count {}", dx, dy, finger_count);
-                println!("end event: finger_count {}", event.finger_count());
-            }
+            } => swipe_process(*dx, *dy, *finger_count),
             _ => (),
         }
     }
