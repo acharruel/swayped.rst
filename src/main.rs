@@ -16,6 +16,9 @@ use input::{Libinput, LibinputInterface};
 use libc::{O_RDONLY, O_RDWR, O_WRONLY};
 use nix::poll::{poll, PollFd, PollFlags};
 
+use log::LevelFilter;
+use syslog::{BasicLogger, Facility, Formatter3164};
+
 use gesture::*;
 
 struct Interface;
@@ -37,9 +40,44 @@ impl LibinputInterface for Interface {
     }
 }
 
+fn syslog_config() -> Result<(), io::Error> {
+    let formatter = Formatter3164 {
+        facility: Facility::LOG_USER,
+        hostname: None,
+        process: "swayped".into(),
+        pid: 0,
+    };
+
+    let logger = match syslog::unix(formatter) {
+        Err(e) => {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to connect to syslog: {:?}", e),
+            ));
+        }
+        Ok(logger) => logger,
+    };
+
+    match log::set_boxed_logger(Box::new(BasicLogger::new(logger)))
+        .map(|()| log::set_max_level(LevelFilter::Debug))
+    {
+        Ok(_) => (),
+        Err(e) => {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to attach syslog logger: {:?}", e),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 fn main() -> io::Result<()> {
     let mut input = Libinput::new_with_udev(Interface);
     input.udev_assign_seat("seat0").unwrap();
+
+    syslog_config()?;
 
     let pollfd = PollFd::new(input.as_raw_fd(), PollFlags::POLLIN);
 

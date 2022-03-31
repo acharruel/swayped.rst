@@ -1,3 +1,5 @@
+use log::error;
+
 use swayipc::{Connection, Fallible};
 
 pub enum SwaypedCommand {
@@ -19,7 +21,7 @@ impl SwaypedCommand {
         };
         match res {
             Ok(_) => (),
-            Err(e) => println!("Failed to send sway command: '{}'", e),
+            Err(e) => error!("Failed to send sway command: '{}'", e),
         }
     }
 }
@@ -29,7 +31,7 @@ fn sway_send_command(cmd: String) -> Fallible<()> {
 
     for res in connection.run_command(cmd)? {
         if let Err(error) = res {
-            println!("Failed to run command: '{}'", error);
+            error!("Failed to run command: '{}'", error);
         }
     }
 

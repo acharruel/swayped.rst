@@ -6,6 +6,7 @@ use input::event::{
     },
     GestureEvent,
 };
+use log::debug;
 
 #[allow(dead_code)]
 pub enum SwaypedGesture {
@@ -61,7 +62,7 @@ impl SwaypedGesture {
                 dy,
                 finger_count,
             } => {
-                println!("abort: dx {} dy {} finger_count {}", dx, dy, finger_count);
+                debug!("abort: dx {} dy {} finger_count {}", dx, dy, finger_count);
             }
             _ => (),
         }
