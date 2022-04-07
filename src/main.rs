@@ -13,7 +13,7 @@ use std::path::Path;
 
 use input::event::Event::Gesture;
 use input::{Libinput, LibinputInterface};
-use libc::{O_RDONLY, O_RDWR, O_WRONLY};
+use libc::{O_RDWR, O_WRONLY};
 use nix::poll::{poll, PollFd, PollFlags};
 
 use log::LevelFilter;
@@ -27,7 +27,7 @@ impl LibinputInterface for Interface {
     fn open_restricted(&mut self, path: &Path, flags: i32) -> Result<RawFd, i32> {
         OpenOptions::new()
             .custom_flags(flags)
-            .read((flags & O_RDONLY != 0) | (flags & O_RDWR != 0))
+            .read(flags & O_RDWR != 0)
             .write((flags & O_WRONLY != 0) | (flags & O_RDWR != 0))
             .open(path)
             .map(|file| file.into_raw_fd())
@@ -86,11 +86,8 @@ fn main() -> io::Result<()> {
     while poll(&mut [pollfd], -1).is_ok() {
         input.dispatch().unwrap();
         for event in &mut input {
-            match event {
-                Gesture(gesture_event) => {
-                    gesture_handle_event(gesture_event, &mut gesture);
-                }
-                _ => (),
+            if let Gesture(gesture_event) = event {
+                gesture_handle_event(gesture_event, &mut gesture);
             }
         }
     }

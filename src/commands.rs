@@ -2,6 +2,7 @@ use log::error;
 
 use swayipc::{Connection, Fallible};
 
+#[allow(clippy::enum_variant_names)]
 pub enum SwaypedCommand {
     WorkspacePrev,
     WorkspaceNext,
@@ -47,11 +48,11 @@ fn sway_new_workspaces() -> Fallible<()> {
         workspaces.push(w.num);
     }
 
-    workspaces.sort();
+    workspaces.sort_unstable();
 
     for w in workspaces {
         if w == max {
-            max = max + 1;
+            max += 1;
         } else {
             break;
         }

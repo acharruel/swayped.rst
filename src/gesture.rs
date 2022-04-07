@@ -16,55 +16,49 @@ pub enum SwaypedGesture {
 
 impl SwaypedGesture {
     fn begin(&mut self) {
-        match self {
-            SwaypedGesture::Swipe {
-                dx,
-                dy,
-                finger_count: _,
-            } => {
-                *dx = 0.0;
-                *dy = 0.0;
-            }
-            _ => (),
+        if let SwaypedGesture::Swipe {
+            dx,
+            dy,
+            finger_count: _,
+        } = self
+        {
+            *dx = 0.0;
+            *dy = 0.0;
         }
     }
 
     fn update(&mut self, event: GestureSwipeUpdateEvent) {
-        match self {
-            SwaypedGesture::Swipe {
-                dx,
-                dy,
-                finger_count,
-            } => {
-                *dx += event.dx();
-                *dy += event.dy();
-                *finger_count = event.finger_count();
-            }
-            _ => (),
+        if let SwaypedGesture::Swipe {
+            dx,
+            dy,
+            finger_count,
+        } = self
+        {
+            *dx += event.dx();
+            *dy += event.dy();
+            *finger_count = event.finger_count();
         }
     }
 
     fn end(&self, _event: GestureSwipeEndEvent) {
-        match self {
-            SwaypedGesture::Swipe {
-                dx,
-                dy,
-                finger_count,
-            } => swipe_process(*dx, *dy, *finger_count),
-            _ => (),
+        if let SwaypedGesture::Swipe {
+            dx,
+            dy,
+            finger_count,
+        } = self
+        {
+            swipe_process(*dx, *dy, *finger_count)
         }
     }
 
     fn abort(&self) {
-        match self {
-            SwaypedGesture::Swipe {
-                dx,
-                dy,
-                finger_count,
-            } => {
-                debug!("abort: dx {} dy {} finger_count {}", dx, dy, finger_count);
-            }
-            _ => (),
+        if let SwaypedGesture::Swipe {
+            dx,
+            dy,
+            finger_count,
+        } = self
+        {
+            debug!("abort: dx {} dy {} finger_count {}", dx, dy, finger_count)
         }
     }
 }

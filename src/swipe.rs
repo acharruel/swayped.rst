@@ -7,29 +7,29 @@ use crate::commands::SwaypedCommand;
 const SWIPE_DIST_THRESHOLD: f64 = 100.0;
 
 enum SwaypedSwipeDir {
-    UP,
-    DOWN,
-    LEFT,
-    RIGHT,
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
 impl SwaypedSwipeDir {
     fn process_command(self, _finger_count: i32) {
         let cmd: SwaypedCommand = match self {
-            SwaypedSwipeDir::UP => SwaypedCommand::WorkspaceNew,
-            SwaypedSwipeDir::DOWN => SwaypedCommand::WorkspaceBackAndForth,
-            SwaypedSwipeDir::LEFT => SwaypedCommand::WorkspacePrev,
-            SwaypedSwipeDir::RIGHT => SwaypedCommand::WorkspaceNext,
+            SwaypedSwipeDir::Up => SwaypedCommand::WorkspaceNew,
+            SwaypedSwipeDir::Down => SwaypedCommand::WorkspaceBackAndForth,
+            SwaypedSwipeDir::Left => SwaypedCommand::WorkspacePrev,
+            SwaypedSwipeDir::Right => SwaypedCommand::WorkspaceNext,
         };
         cmd.process_command()
     }
 
     fn display(&self) -> String {
         match self {
-            SwaypedSwipeDir::UP => "UP".to_string(),
-            SwaypedSwipeDir::DOWN => "DOWN".to_string(),
-            SwaypedSwipeDir::LEFT => "LEFT".to_string(),
-            SwaypedSwipeDir::RIGHT => "RIGHT".to_string(),
+            SwaypedSwipeDir::Up => "UP".to_string(),
+            SwaypedSwipeDir::Down => "DOWN".to_string(),
+            SwaypedSwipeDir::Left => "LEFT".to_string(),
+            SwaypedSwipeDir::Right => "RIGHT".to_string(),
         }
     }
 }
@@ -48,28 +48,28 @@ pub fn swipe_process(dx: f64, dy: f64, finger_count: i32) {
     if dx.abs() >= SWIPE_DIST_THRESHOLD && dy.abs() >= SWIPE_DIST_THRESHOLD {
         if (dx.abs() / dy.abs()) > (dy.abs() / dx.abs() + ratio) {
             swipe = if dx > 0.0 {
-                Some(SwaypedSwipeDir::RIGHT)
+                Some(SwaypedSwipeDir::Right)
             } else {
-                Some(SwaypedSwipeDir::LEFT)
+                Some(SwaypedSwipeDir::Left)
             }
         } else if (dy.abs() / dx.abs()) > (dx.abs() / dy.abs() + ratio) {
             swipe = if dy > 0.0 {
-                Some(SwaypedSwipeDir::DOWN)
+                Some(SwaypedSwipeDir::Down)
             } else {
-                Some(SwaypedSwipeDir::UP)
+                Some(SwaypedSwipeDir::Up)
             }
         }
     } else if dx.abs() > SWIPE_DIST_THRESHOLD {
         swipe = if dx > 0.0 {
-            Some(SwaypedSwipeDir::RIGHT)
+            Some(SwaypedSwipeDir::Right)
         } else {
-            Some(SwaypedSwipeDir::LEFT)
+            Some(SwaypedSwipeDir::Left)
         }
     } else if dy.abs() > SWIPE_DIST_THRESHOLD {
         swipe = if dy > 0.0 {
-            Some(SwaypedSwipeDir::DOWN)
+            Some(SwaypedSwipeDir::Down)
         } else {
-            Some(SwaypedSwipeDir::UP)
+            Some(SwaypedSwipeDir::Up)
         }
     }
 
@@ -77,15 +77,12 @@ pub fn swipe_process(dx: f64, dy: f64, finger_count: i32) {
 }
 
 fn swipe_detected(o: Option<SwaypedSwipeDir>, finger_count: i32) {
-    match o {
-        Some(sw) => {
-            debug!(
-                "swipe_detected! {:?} finger count {}",
-                sw.display(),
-                finger_count
-            );
-            sw.process_command(finger_count);
-        }
-        None => (),
+    if let Some(sw) = o {
+        debug!(
+            "swipe_detected! {:?} finger count {}",
+            sw.display(),
+            finger_count
+        );
+        sw.process_command(finger_count);
     }
 }
