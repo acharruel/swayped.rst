@@ -1,5 +1,6 @@
 mod commands;
 mod gesture;
+mod pointer;
 mod swipe;
 
 use std::fs::{File, OpenOptions};
@@ -12,6 +13,7 @@ use std::os::unix::{
 use std::path::Path;
 
 use input::event::Event::Gesture;
+use input::event::Event::Pointer;
 use input::{Libinput, LibinputInterface};
 use libc::{O_RDWR, O_WRONLY};
 use nix::poll::{poll, PollFd, PollFlags};
@@ -20,6 +22,7 @@ use log::LevelFilter;
 use syslog::{BasicLogger, Facility, Formatter3164};
 
 use gesture::*;
+use pointer::*;
 
 struct Interface;
 
@@ -86,8 +89,10 @@ fn main() -> io::Result<()> {
     while poll(&mut [pollfd], -1).is_ok() {
         input.dispatch().unwrap();
         for event in &mut input {
-            if let Gesture(gesture_event) = event {
-                gesture_handle_event(gesture_event, &mut gesture);
+            match event {
+                Gesture(gesture_event) => gesture_handle_event(gesture_event, &mut gesture),
+                Pointer(pointer_event) => pointer_handle_event(pointer_event),
+                _ => (),
             }
         }
     }
