@@ -4,7 +4,6 @@ mod pointer;
 mod swipe;
 
 use std::fs::{File, OpenOptions};
-use std::io;
 use std::os::unix::prelude::AsRawFd;
 use std::os::unix::{
     fs::OpenOptionsExt,
@@ -20,6 +19,7 @@ use nix::poll::{poll, PollFd, PollFlags};
 
 use log::LevelFilter;
 use syslog::{BasicLogger, Facility, Formatter3164};
+use anyhow::{Result, Context, bail};
 
 use gesture::*;
 use pointer::*;
@@ -43,7 +43,7 @@ impl LibinputInterface for Interface {
     }
 }
 
-fn syslog_config() -> Result<(), io::Error> {
+fn syslog_config() -> Result<()> {
     let formatter = Formatter3164 {
         facility: Facility::LOG_USER,
         hostname: None,
@@ -51,49 +51,39 @@ fn syslog_config() -> Result<(), io::Error> {
         pid: 0,
     };
 
-    let logger = match syslog::unix(formatter) {
-        Err(e) => {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("Failed to connect to syslog: {:?}", e),
-            ));
-        }
-        Ok(logger) => logger,
+    let Ok(logger) = syslog::unix(formatter) else {
+            bail!("Failed to connect to syslog");
     };
 
-    match log::set_boxed_logger(Box::new(BasicLogger::new(logger)))
-        .map(|()| log::set_max_level(LevelFilter::Debug))
-    {
-        Ok(_) => (),
-        Err(e) => {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("Failed to attach syslog logger: {:?}", e),
-            ));
-        }
-    }
+    log::set_boxed_logger(Box::new(BasicLogger::new(logger)))
+        .map(|()| log::set_max_level(LevelFilter::Debug))?;
 
     Ok(())
 }
 
-fn main() -> io::Result<()> {
+fn main() -> Result<()> {
     let mut input = Libinput::new_with_udev(Interface);
-    input.udev_assign_seat("seat0").unwrap();
+    let Ok(_) = input.udev_assign_seat("seat0") else {
+        return Ok(());
+    };
 
-    syslog_config()?;
+    syslog_config().context("Failed to initialize syslog")?;
 
     let pollfd = PollFd::new(input.as_raw_fd(), PollFlags::POLLIN);
 
     let mut gesture: Option<SwaypedGesture> = None;
 
     while poll(&mut [pollfd], -1).is_ok() {
-        input.dispatch().unwrap();
+        let Ok (_) = input.dispatch() else {
+            continue;
+        };
+
         for event in &mut input {
             match event {
                 Gesture(gesture_event) => gesture_handle_event(gesture_event, &mut gesture),
                 Pointer(pointer_event) => pointer_handle_event(pointer_event),
-                _ => (),
-            }
+                _ => Ok(()),
+            }?;
         }
     }
 

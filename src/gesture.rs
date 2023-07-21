@@ -1,4 +1,5 @@
 use crate::swipe::swipe_process;
+use anyhow::Result;
 use input::event::{
     gesture::{
         GestureEventCoordinates, GestureEventTrait, GestureSwipeEndEvent, GestureSwipeEvent,
@@ -63,7 +64,12 @@ impl SwaypedGesture {
     }
 }
 
-fn gesture_handle_swipe_event(event: GestureSwipeEvent, gesture: &mut Option<SwaypedGesture>) {
+fn gesture_handle_swipe_event(
+    event: GestureSwipeEvent,
+    gesture: &mut Option<SwaypedGesture>,
+) -> Result<()> {
+    use GestureSwipeEvent::*;
+
     // make sure gesture is a valid option, create one if needed
     match gesture {
         None => {
@@ -81,28 +87,36 @@ fn gesture_handle_swipe_event(event: GestureSwipeEvent, gesture: &mut Option<Swa
         None => (),
         Some(sg) => {
             match event {
-                GestureSwipeEvent::Begin(_) => sg.begin(),
-                GestureSwipeEvent::Update(u) => sg.update(u),
-                GestureSwipeEvent::End(e) => sg.end(e),
+                Begin(_) => sg.begin(),
+                Update(u) => sg.update(u),
+                End(e) => sg.end(e),
                 _ => (),
             };
         }
     };
+
+    Ok(())
 }
 
-pub fn gesture_handle_event(event: GestureEvent, gesture: &mut Option<SwaypedGesture>) {
+pub fn gesture_handle_event(
+    event: GestureEvent,
+    gesture: &mut Option<SwaypedGesture>,
+) -> Result<()> {
+    use GestureEvent::*;
+
     match event {
         // swipe event
-        GestureEvent::Swipe(swipe_event) => gesture_handle_swipe_event(swipe_event, gesture),
+        Swipe(swipe_event) => gesture_handle_swipe_event(swipe_event, gesture),
 
         // hold event: abort pending gesture
-        GestureEvent::Hold(_) => {
+        Hold(_) => {
             match gesture {
                 None => (),
                 Some(sg) => sg.abort(),
             };
+            Ok(())
         }
 
-        _ => (),
+        _ => Ok(()),
     }
 }

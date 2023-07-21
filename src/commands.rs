@@ -1,8 +1,9 @@
-use log::error;
+use anyhow::{Result, Context, bail};
 
-use swayipc::{Connection, Fallible};
+use swayipc::Connection;
 
 #[allow(clippy::enum_variant_names)]
+#[derive(Debug)]
 pub enum SwaypedCommand {
     WorkspacePrev,
     WorkspaceNext,
@@ -11,35 +12,31 @@ pub enum SwaypedCommand {
 }
 
 impl SwaypedCommand {
-    pub fn process_command(self) {
-        let res: Fallible<()> = match self {
-            SwaypedCommand::WorkspacePrev => sway_send_command(String::from("workspace prev")),
-            SwaypedCommand::WorkspaceNext => sway_send_command(String::from("workspace next")),
-            SwaypedCommand::WorkspaceBackAndForth => {
-                sway_send_command(String::from("workspace back_and_forth"))
-            }
-            SwaypedCommand::WorkspaceNew => sway_new_workspaces(),
-        };
-        match res {
-            Ok(_) => (),
-            Err(e) => error!("Failed to send sway command: '{}'", e),
-        }
+    pub fn process_command(self) -> Result<()> {
+        use SwaypedCommand::*;
+
+        match self {
+            WorkspacePrev => sway_send_command("workspace prev"),
+            WorkspaceNext => sway_send_command("workspace next"),
+            WorkspaceBackAndForth => sway_send_command("workspace back_and_forth"),
+            WorkspaceNew => sway_new_workspaces(),
+        }.with_context(|| format!("Failed to send sway command {self:?}"))
     }
 }
 
-fn sway_send_command(cmd: String) -> Fallible<()> {
+fn sway_send_command(cmd: impl Into<String>) -> Result<()> {
     let mut connection = Connection::new()?;
 
-    for res in connection.run_command(cmd)? {
+    for res in connection.run_command(cmd.into())? {
         if let Err(error) = res {
-            error!("Failed to run command: '{}'", error);
+            bail!("Failed to run command: '{}'", error);
         }
     }
 
     Ok(())
 }
 
-fn sway_new_workspaces() -> Fallible<()> {
+fn sway_new_workspaces() -> Result<()> {
     let mut connection = Connection::new()?;
     let mut max = 1;
     let mut workspaces: Vec<i32> = Vec::new();
