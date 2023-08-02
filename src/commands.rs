@@ -1,4 +1,4 @@
-use anyhow::{Result, Context, bail};
+use anyhow::{bail, Context, Result};
 
 use swayipc::Connection;
 
@@ -20,7 +20,8 @@ impl SwaypedCommand {
             WorkspaceNext => sway_send_command("workspace next"),
             WorkspaceBackAndForth => sway_send_command("workspace back_and_forth"),
             WorkspaceNew => sway_new_workspaces(),
-        }.with_context(|| format!("Failed to send sway command {self:?}"))
+        }
+        .with_context(|| format!("Failed to send sway command {self:?}"))
     }
 }
 

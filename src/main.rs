@@ -15,14 +15,13 @@ use input::event::Event::Gesture;
 use input::event::Event::Pointer;
 use input::{Libinput, LibinputInterface};
 use libc::{O_RDWR, O_WRONLY};
-use nix::poll::{poll, PollFd, PollFlags};
 
+use anyhow::{bail, Context, Result};
 use log::LevelFilter;
 use syslog::{BasicLogger, Facility, Formatter3164};
-use anyhow::{Result, Context, bail};
 
-use gesture::*;
-use pointer::*;
+use mio::unix::SourceFd;
+use mio::{Events, Interest, Poll, Token};
 
 struct Interface;
 
@@ -64,28 +63,45 @@ fn syslog_config() -> Result<()> {
 fn main() -> Result<()> {
     let mut input = Libinput::new_with_udev(Interface);
     let Ok(_) = input.udev_assign_seat("seat0") else {
-        return Ok(());
+        bail!("Libinput failed to assign udev seat");
     };
 
     syslog_config().context("Failed to initialize syslog")?;
 
-    let pollfd = PollFd::new(input.as_raw_fd(), PollFlags::POLLIN);
+    const INPUT_EVENT: Token = Token(0);
 
-    let mut gesture: Option<SwaypedGesture> = None;
+    let mut poll = Poll::new()?;
 
-    while poll(&mut [pollfd], -1).is_ok() {
-        let Ok (_) = input.dispatch() else {
-            continue;
-        };
+    poll.registry().register(
+        &mut SourceFd(&input.as_raw_fd()),
+        INPUT_EVENT,
+        Interest::READABLE,
+    )?;
 
-        for event in &mut input {
-            match event {
-                Gesture(gesture_event) => gesture_handle_event(gesture_event, &mut gesture),
-                Pointer(pointer_event) => pointer_handle_event(pointer_event),
-                _ => Ok(()),
-            }?;
+    let mut events = Events::with_capacity(16);
+
+    loop {
+        poll.poll(&mut events, None)?;
+
+        for event in events.iter() {
+            let INPUT_EVENT = event.token() else {
+                unreachable!()
+            };
+
+            input.dispatch()?;
+            for e in &mut input {
+                use gesture::*;
+                use pointer::*;
+
+                match e {
+                    Gesture(gesture_event) => {
+                        let mut gesture: Option<SwaypedGesture> = None;
+                        gesture_handle_event(gesture_event, &mut gesture)
+                    }
+                    Pointer(pointer_event) => pointer_handle_event(pointer_event),
+                    _ => Ok(()),
+                }?;
+            }
         }
     }
-
-    Ok(())
 }
