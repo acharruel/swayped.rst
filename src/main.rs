@@ -61,6 +61,10 @@ fn syslog_config() -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    use gesture::*;
+    use pointer::*;
+    let mut gesture: Option<SwaypedGesture> = None;
+
     let mut input = Libinput::new_with_udev(Interface);
     let Ok(_) = input.udev_assign_seat("seat0") else {
         bail!("Libinput failed to assign udev seat");
@@ -90,14 +94,8 @@ fn main() -> Result<()> {
 
             input.dispatch()?;
             for e in &mut input {
-                use gesture::*;
-                use pointer::*;
-
                 match e {
-                    Gesture(gesture_event) => {
-                        let mut gesture: Option<SwaypedGesture> = None;
-                        gesture_handle_event(gesture_event, &mut gesture)
-                    }
+                    Gesture(gesture_event) => gesture_handle_event(gesture_event, &mut gesture),
                     Pointer(pointer_event) => pointer_handle_event(pointer_event),
                     _ => Ok(()),
                 }?;
