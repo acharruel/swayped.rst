@@ -14,4 +14,4 @@ mio = "0.8.8"
 nix = "0.23"
 swayipc = "3.0.1"
 syslog = "6.0"
-tokio = { version = "1.29.1", features = ["full"] }
+tokio = { version = "1.29.1", features = ["full", "macros", "rt", "net", "signal"] }
