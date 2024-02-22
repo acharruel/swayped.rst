@@ -98,7 +98,7 @@ impl AsyncLibinput {
 
 use gesture::*;
 use pointer::*;
-fn process_event(event: Event, gesture: &mut Option<SwaypedGesture>) {
+fn process_event(event: &Event, gesture: &mut Option<SwaypedGesture>) {
     let res = match event {
         Gesture(gesture_event) => gesture_handle_event(gesture_event, gesture),
         Pointer(pointer_event) => pointer_handle_event(pointer_event),
@@ -135,11 +135,12 @@ async fn main() {
     };
 
     let mut gesture: Option<SwaypedGesture> = None;
+    let mut events = Vec::new();
     loop {
-        let mut events = Vec::new();
+        events.clear();
         select! {
             Ok(_) = input.read(&mut events) => {
-                for event in events {
+                for event in &events {
                     process_event(event, &mut gesture);
                 }
             },

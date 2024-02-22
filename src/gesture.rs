@@ -28,7 +28,7 @@ impl SwaypedGesture {
         }
     }
 
-    fn update(&mut self, event: GestureSwipeUpdateEvent) {
+    fn update(&mut self, event: &GestureSwipeUpdateEvent) {
         if let SwaypedGesture::Swipe {
             dx,
             dy,
@@ -41,7 +41,7 @@ impl SwaypedGesture {
         }
     }
 
-    fn end(&self, _event: GestureSwipeEndEvent) {
+    fn end(&self, _event: &GestureSwipeEndEvent) {
         if let SwaypedGesture::Swipe {
             dx,
             dy,
@@ -65,7 +65,7 @@ impl SwaypedGesture {
 }
 
 fn gesture_handle_swipe_event(
-    event: GestureSwipeEvent,
+    event: &GestureSwipeEvent,
     gesture: &mut Option<SwaypedGesture>,
 ) -> Result<()> {
     use GestureSwipeEvent::*;
@@ -99,7 +99,7 @@ fn gesture_handle_swipe_event(
 }
 
 pub fn gesture_handle_event(
-    event: GestureEvent,
+    event: &GestureEvent,
     gesture: &mut Option<SwaypedGesture>,
 ) -> Result<()> {
     use GestureEvent::*;

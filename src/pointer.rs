@@ -45,7 +45,7 @@ impl SwaypedPointerAction {
     }
 }
 
-fn pointer_handle_scroll_event(event: PointerScrollWheelEvent) -> Result<()> {
+fn pointer_handle_scroll_event(event: &PointerScrollWheelEvent) -> Result<()> {
     let horiz = event.scroll_value_v120(Horizontal);
 
     let scroll: Option<SwaypedPointerAction> = if horiz > 0.0 {
@@ -64,7 +64,7 @@ fn pointer_handle_scroll_event(event: PointerScrollWheelEvent) -> Result<()> {
     Ok(())
 }
 
-fn pointer_handle_button(event: PointerButtonEvent) -> Result<()> {
+fn pointer_handle_button(event: &PointerButtonEvent) -> Result<()> {
     if event.button_state() != Released {
         return Ok(());
     }
@@ -85,7 +85,7 @@ fn pointer_handle_button(event: PointerButtonEvent) -> Result<()> {
     Ok(())
 }
 
-pub fn pointer_handle_event(event: PointerEvent) -> Result<()> {
+pub fn pointer_handle_event(event: &PointerEvent) -> Result<()> {
     use PointerEvent::*;
 
     // only interested in scroll wheel event
