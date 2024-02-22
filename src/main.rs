@@ -75,21 +75,18 @@ impl AsyncLibinput {
         }
     }
 
-    pub async fn read(&mut self) -> io::Result<Event> {
+    pub async fn read(&mut self, events: &mut Vec<Event>) -> io::Result<usize> {
         let mut guard = self.inner.readable_mut().await?;
         match guard.try_io(|inner| {
             inner.get_mut().dispatch()?;
-            match inner.get_mut().next() {
-                Some(event) => Ok(event),
-                None => Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "No event available",
-                )),
+            while let Some(event) = inner.get_mut().next() {
+                events.push(event);
             }
+            Ok(())
         }) {
-            Ok(result) => {
+            Ok(_) => {
                 guard.clear_ready_matching(Ready::READABLE);
-                result
+                Ok(events.len())
             }
             Err(_would_block) => Err(io::Error::new(
                 io::ErrorKind::WouldBlock,
@@ -102,7 +99,6 @@ impl AsyncLibinput {
 use gesture::*;
 use pointer::*;
 fn process_event(event: Event, gesture: &mut Option<SwaypedGesture>) {
-
     let res = match event {
         Gesture(gesture_event) => gesture_handle_event(gesture_event, gesture),
         Pointer(pointer_event) => pointer_handle_event(pointer_event),
@@ -140,11 +136,11 @@ async fn main() {
 
     let mut gesture: Option<SwaypedGesture> = None;
     loop {
+        let mut events = Vec::new();
         select! {
-            event = input.read() => {
-                match event {
-                    Ok(event) => process_event(event, &mut gesture),
-                    Err(_) => continue,
+            Ok(_) = input.read(&mut events) => {
+                for event in events {
+                    process_event(event, &mut gesture);
                 }
             },
 
