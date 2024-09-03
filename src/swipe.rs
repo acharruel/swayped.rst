@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 
 use anyhow::Result;
-use log::{debug, error};
+use tracing::{debug, error};
 
 use crate::commands::SwaypedCommand;
 
@@ -49,10 +49,7 @@ pub fn swipe_process(dx: f64, dy: f64, finger_count: i32) {
     let mut ratio: f64 = PI / 8.0;
     ratio = ratio.tan();
 
-    debug!(
-        "swipe_process: dx {} dy {} finger_count {}",
-        dx, dy, finger_count
-    );
+    debug!(?dx, ?dy, ?finger_count, "swipe_process");
 
     if dx.abs() >= SWIPE_DIST_THRESHOLD && dy.abs() >= SWIPE_DIST_THRESHOLD {
         if (dx.abs() / dy.abs()) > (dy.abs() / dx.abs() + ratio) {
@@ -74,11 +71,7 @@ pub fn swipe_process(dx: f64, dy: f64, finger_count: i32) {
 
 fn swipe_detected(o: Option<SwaypedSwipeDir>, finger_count: i32) -> Result<()> {
     if let Some(sw) = o {
-        debug!(
-            "swipe_detected! {:?} finger count {}",
-            sw.display(),
-            finger_count
-        );
+        debug!(swipe = ?sw.display(), ?finger_count, "swipe_detected!");
         sw.process_command(finger_count)?;
     }
     Ok(())

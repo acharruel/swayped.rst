@@ -7,9 +7,11 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.72"
+clap = { version = "4.5.7", features = ["derive", "env"] }
 input = "0.7.1"
 libc = "0.2"
-log = "0.4"
 swayipc = "3.0.1"
-syslog = "6.0"
+syslog-tracing = "0.3.1"
 tokio = { version = "1.29.1", features = ["full", "macros", "rt", "net", "signal"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

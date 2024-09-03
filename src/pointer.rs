@@ -3,7 +3,7 @@ use input::event::pointer::Axis::*;
 use input::event::pointer::ButtonState::*;
 use input::event::pointer::PointerButtonEvent;
 use input::event::{pointer::PointerScrollWheelEvent, PointerEvent};
-use log::debug;
+use tracing::debug;
 
 use crate::commands::SwaypedCommand;
 
@@ -57,7 +57,7 @@ fn pointer_handle_scroll_event(event: &PointerScrollWheelEvent) -> Result<()> {
     };
 
     if let Some(sc) = scroll {
-        debug!("scroll_detected! {:?}", sc.display());
+        debug!(scroll = ?sc.display(), "scroll_detected!");
         sc.process_command()?;
     }
 
@@ -78,7 +78,7 @@ fn pointer_handle_button(event: &PointerButtonEvent) -> Result<()> {
     };
 
     if let Some(b) = button {
-        debug!("button press! {:?}", b.display());
+        debug!(button = b.display(), "button press!");
         b.process_command()?;
     }
 
