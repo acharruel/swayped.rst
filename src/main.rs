@@ -32,7 +32,7 @@ pub fn setup_logging(log_level: &str, syslog: bool) -> Result<()> {
             let layer = tracing_subscriber::fmt::layer().without_time();
             let tracer = tracing_subscriber::registry().with(layer).with(filter);
             tracing::subscriber::set_global_default(tracer).context("Failed to set subscriber")?;
-        },
+        }
         true => {
             let identity = std::ffi::CStr::from_bytes_with_nul(b"swayped\0").unwrap();
             let (options, facility) = Default::default();
@@ -40,7 +40,7 @@ pub fn setup_logging(log_level: &str, syslog: bool) -> Result<()> {
             let layer = tracing_subscriber::fmt::layer().with_writer(syslog);
             let tracer = tracing_subscriber::registry().with(layer).with(filter);
             tracing::subscriber::set_global_default(tracer).context("Failed to set subscriber")?;
-        },
+        }
     };
 
     Ok(())

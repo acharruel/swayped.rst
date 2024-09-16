@@ -1,34 +1,40 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 
 use swayipc::Connection;
+use tracing::debug;
 
-#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
-pub enum SwaypedCommand {
-    WorkspacePrev,
-    WorkspaceNext,
-    WorkspaceBackAndForth,
-    WorkspaceNew,
+pub enum InputCommand {
+    SwipeUp(i32),
+    SwipeDown(i32),
+    SwipeLeft(i32),
+    SwipeRight(i32),
+    ScrollLeft,
+    ScrollRight,
 }
 
-impl SwaypedCommand {
+impl InputCommand {
     pub fn process_command(self) -> Result<()> {
-        use SwaypedCommand::*;
 
         match self {
-            WorkspacePrev => sway_send_command("workspace prev"),
-            WorkspaceNext => sway_send_command("workspace next"),
-            WorkspaceBackAndForth => sway_send_command("workspace back_and_forth"),
-            WorkspaceNew => sway_new_workspaces(),
+            InputCommand::SwipeUp(3) => builtin::sway_new_workspaces()?,
+            InputCommand::SwipeDown(3) => sway_send_command("workspace back_and_forth")?,
+            InputCommand::SwipeLeft(3) => sway_send_command("workspace prev")?,
+            InputCommand::SwipeRight(3) => sway_send_command("workspace next")?,
+            InputCommand::ScrollLeft => sway_send_command("workspace prev")?,
+            InputCommand::ScrollRight => sway_send_command("workspace next")?,
+            _ => (),
         }
-        .with_context(|| format!("Failed to send sway command {self:?}"))
+        Ok(())
     }
 }
 
-fn sway_send_command(cmd: impl Into<String>) -> Result<()> {
+fn sway_send_command(cmd: &str) -> Result<()> {
     let mut connection = Connection::new()?;
 
-    for res in connection.run_command(cmd.into())? {
+    debug!(?cmd, "Sending command to sway");
+
+    for res in connection.run_command(cmd)? {
         if let Err(error) = res {
             bail!("Failed to run command: '{}'", error);
         }
@@ -37,7 +43,10 @@ fn sway_send_command(cmd: impl Into<String>) -> Result<()> {
     Ok(())
 }
 
-fn sway_new_workspaces() -> Result<()> {
+mod builtin {
+    use super::*;
+
+pub fn sway_new_workspaces() -> Result<()> {
     let mut connection = Connection::new()?;
     let mut max = 1;
     let mut workspaces: Vec<i32> = Vec::new();
@@ -56,7 +65,8 @@ fn sway_new_workspaces() -> Result<()> {
         }
     }
 
-    sway_send_command(format!("workspace {}", max))?;
+    sway_send_command(&format!("workspace {}", max))?;
 
     Ok(())
+}
 }

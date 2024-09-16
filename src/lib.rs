@@ -1,14 +1,15 @@
 mod commands;
 mod gesture;
 mod pointer;
-mod swipe;
 
 use anyhow::Result;
+use gesture::SwaypedGesture;
 use input::event::Event::Gesture;
 use input::event::Event::Pointer;
+use input::event::GestureEvent::{Hold, Swipe};
+use input::event::PointerEvent::ScrollWheel;
 use input::{Event, Libinput, LibinputInterface};
 use libc::{O_RDWR, O_WRONLY};
-use tracing::error;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::os::unix::{
@@ -20,6 +21,10 @@ use tokio::io::unix::AsyncFd;
 use tokio::io::Ready;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
+use tracing::error;
+use tracing::trace;
+
+use crate::pointer::pointer_handle_scroll_event;
 
 struct Interface;
 
@@ -75,12 +80,12 @@ impl AsyncLibinput {
     }
 }
 
-use gesture::*;
-use pointer::*;
-fn process_event(event: &Event, gesture: &mut Option<SwaypedGesture>) {
+fn process_event(event: &Event, gesture: &mut Box<SwaypedGesture>) {
+    trace!(?event, "Processing event:");
     let res = match event {
-        Gesture(gesture_event) => gesture_handle_event(gesture_event, gesture),
-        Pointer(pointer_event) => pointer_handle_event(pointer_event),
+        Gesture(Hold(_)) => gesture.reset(),
+        Gesture(Swipe(event)) => gesture.handle_event(event),
+        Pointer(ScrollWheel(event)) => pointer_handle_scroll_event(event),
         _ => Ok(()),
     };
 
@@ -109,7 +114,7 @@ pub async fn run() -> io::Result<()> {
         }),
     };
 
-    let mut gesture: Option<SwaypedGesture> = None;
+    let mut gesture = Box::new(SwaypedGesture::new());
     let mut events = Vec::new();
     loop {
         events.clear();
