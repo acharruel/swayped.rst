@@ -10,6 +10,7 @@ use input::event::GestureEvent::{Hold, Swipe};
 use input::event::PointerEvent::ScrollWheel;
 use input::{Event, Libinput, LibinputInterface};
 use libc::{O_RDWR, O_WRONLY};
+use tokio::sync::mpsc;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::os::unix::{
@@ -24,6 +25,7 @@ use tokio::signal::unix::{signal, SignalKind};
 use tracing::error;
 use tracing::trace;
 
+use crate::commands::InputCommand;
 use crate::pointer::pointer_handle_scroll_event;
 
 struct Interface;
@@ -80,12 +82,12 @@ impl AsyncLibinput {
     }
 }
 
-fn process_event(event: &Event, gesture: &mut Box<SwaypedGesture>) {
+async fn process_event(event: &Event, gesture: &mut Box<SwaypedGesture<'_>>, tx: &mpsc::Sender<InputCommand>) {
     trace!(?event, "Processing event:");
     let res = match event {
         Gesture(Hold(_)) => gesture.reset(),
-        Gesture(Swipe(event)) => gesture.handle_event(event),
-        Pointer(ScrollWheel(event)) => pointer_handle_scroll_event(event),
+        Gesture(Swipe(event)) => gesture.handle_event(event).await,
+        Pointer(ScrollWheel(event)) => pointer_handle_scroll_event(event, tx).await,
         _ => Ok(()),
     };
 
@@ -114,15 +116,23 @@ pub async fn run() -> io::Result<()> {
         }),
     };
 
-    let mut gesture = Box::new(SwaypedGesture::new());
+    let (tx, mut rx) = mpsc::channel::<InputCommand>(8);
+
+    let mut gesture = Box::new(SwaypedGesture::new(&tx));
     let mut events = Vec::new();
     loop {
         events.clear();
         select! {
             Ok(_) = input.read(&mut events) => {
                 for event in &events {
-                    process_event(event, &mut gesture);
+                    process_event(event, &mut gesture, &tx).await;
                 }
+            },
+
+            Some(cmd) = rx.recv() => {
+                cmd.process_command().unwrap_or_else(|err| {
+                    error!(?err, "Failed to process command");
+                });
             },
 
             _ = sigterm.recv() => {

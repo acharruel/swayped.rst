@@ -2,10 +2,11 @@ use anyhow::Result;
 use input::event::pointer::Axis::*;
 use input::event::pointer::PointerScrollWheelEvent;
 use tracing::debug;
+use tokio::sync::mpsc;
 
 use crate::commands::InputCommand;
 
-pub fn pointer_handle_scroll_event(event: &PointerScrollWheelEvent) -> Result<()> {
+pub async fn pointer_handle_scroll_event(event: &PointerScrollWheelEvent, tx: &mpsc::Sender<InputCommand>) -> Result<()> {
     let horiz = event.scroll_value_v120(Horizontal);
     let cmd = if horiz > 0.0 {
         debug!("scroll right");
@@ -15,7 +16,7 @@ pub fn pointer_handle_scroll_event(event: &PointerScrollWheelEvent) -> Result<()
         InputCommand::ScrollLeft
     };
 
-    cmd.process_command()?;
+    tx.send(cmd).await?;
 
     Ok(())
 }
