@@ -1,0 +1,8 @@
+mappings = [
+    { gesture = "swipe_left", finger_count = 3, cmd_type = "sway", cmd = "workspace prev" },
+    { gesture = "swipe_right", finger_count = 3, cmd_type = "sway", cmd = "workspace next" },
+    { gesture = "swipe_up", finger_count = 3, cmd_type = "builtin", cmd = "workspace_new" },
+    { gesture = "swipe_down", finger_count = 3, cmd_type = "sway", cmd = "workspace back_and_forth" },
+    { gesture = "scrollwheel_left", cmd_type = "sway", cmd = "workspace prev" },
+    { gesture = "scrollwheel_right", cmd_type = "sway", cmd = "workspace right" },
+]

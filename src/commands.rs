@@ -1,9 +1,98 @@
+use std::collections::HashMap;
+
 use anyhow::{bail, Result};
 
 use swayipc::Connection;
-use tracing::debug;
+use tokio::sync::mpsc;
+use tracing::{debug, info, warn};
 
-#[derive(Debug)]
+use crate::config::TomlConfig;
+
+pub struct CommandDesc {
+    dry_run: bool,
+    tx: mpsc::Sender<InputCommand>,
+    mappings: HashMap<InputCommand, OutputCommand>,
+}
+
+impl CommandDesc {
+    pub fn new(dry_run: bool, config: TomlConfig, tx: mpsc::Sender<InputCommand>) -> Self {
+        let mut mappings = HashMap::new();
+
+        config
+            .mappings
+            .iter()
+            .for_each(|x| match (x.gesture.as_str(), x.finger_count) {
+                ("swipe_left", Some(n)) => {
+                    mappings.insert(
+                        InputCommand::SwipeLeft(n),
+                        OutputCommand {
+                            cmd: x.cmd.clone(),
+                            cmd_type: x.cmd_type.clone(),
+                        },
+                    );
+                }
+                ("swipe_right", Some(n)) => {
+                    mappings.insert(
+                        InputCommand::SwipeRight(n),
+                        OutputCommand {
+                            cmd: x.cmd.clone(),
+                            cmd_type: x.cmd_type.clone(),
+                        },
+                    );
+                }
+                ("swipe_up", Some(n)) => {
+                    mappings.insert(
+                        InputCommand::SwipeUp(n),
+                        OutputCommand {
+                            cmd: x.cmd.clone(),
+                            cmd_type: x.cmd_type.clone(),
+                        },
+                    );
+                }
+                ("swipe_down", Some(n)) => {
+                    mappings.insert(
+                        InputCommand::SwipeDown(n),
+                        OutputCommand {
+                            cmd: x.cmd.clone(),
+                            cmd_type: x.cmd_type.clone(),
+                        },
+                    );
+                }
+                ("scrollwheel_left", None) => {
+                    mappings.insert(
+                        InputCommand::ScrollLeft,
+                        OutputCommand {
+                            cmd: x.cmd.clone(),
+                            cmd_type: x.cmd_type.clone(),
+                        },
+                    );
+                }
+                ("scrollwheel_right", None) => {
+                    mappings.insert(
+                        InputCommand::ScrollRight,
+                        OutputCommand {
+                            cmd: x.cmd.clone(),
+                            cmd_type: x.cmd_type.clone(),
+                        },
+                    );
+                }
+                _ => warn!("Unsupported mapping: {:?}", x),
+            });
+
+        Self {
+            dry_run,
+            tx,
+            mappings,
+        }
+    }
+
+    pub async fn send(&self, cmd: InputCommand) -> Result<()> {
+        self.tx.send(cmd).await?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Eq, Hash, PartialEq)]
 pub enum InputCommand {
     SwipeUp(i32),
     SwipeDown(i32),
@@ -13,60 +102,88 @@ pub enum InputCommand {
     ScrollRight,
 }
 
-impl InputCommand {
-    pub fn process_command(self) -> Result<()> {
+#[derive(Debug)]
+struct OutputCommand {
+    cmd: String,
+    cmd_type: String,
+}
 
-        match self {
-            InputCommand::SwipeUp(3) => builtin::sway_new_workspaces()?,
-            InputCommand::SwipeDown(3) => sway_send_command("workspace back_and_forth")?,
-            InputCommand::SwipeLeft(3) => sway_send_command("workspace prev")?,
-            InputCommand::SwipeRight(3) => sway_send_command("workspace next")?,
-            InputCommand::ScrollLeft => sway_send_command("workspace prev")?,
-            InputCommand::ScrollRight => sway_send_command("workspace next")?,
-            _ => (),
+impl InputCommand {
+    pub fn process_command(self, cmd_desc: &CommandDesc) -> Result<()> {
+        let cmd = &cmd_desc.mappings.get(&self);
+
+        if cmd.is_none() {
+            warn!(?self, "Command not in configuration");
+            return Ok(());
         }
+
+        let cmd = cmd.unwrap();
+
+        if cmd_desc.dry_run {
+            info!(?cmd, "Dry run, command: ");
+            return Ok(());
+        }
+
+        match cmd.cmd_type.as_str() {
+            "sway" => sway::process_command(&cmd.cmd)?,
+            "builtin" => builtin::process_command(&cmd.cmd)?,
+            _ => warn!("Command type not supported"),
+        }
+
         Ok(())
     }
 }
 
-fn sway_send_command(cmd: &str) -> Result<()> {
-    let mut connection = Connection::new()?;
+mod sway {
+    use super::*;
 
-    debug!(?cmd, "Sending command to sway");
+    pub fn process_command(cmd: &str) -> Result<()> {
+        let mut connection = Connection::new()?;
 
-    for res in connection.run_command(cmd)? {
-        if let Err(error) = res {
-            bail!("Failed to run command: '{}'", error);
+        debug!(?cmd, "Sending command to sway");
+
+        for res in connection.run_command(cmd)? {
+            if let Err(error) = res {
+                bail!("Failed to run command: '{}'", error);
+            }
         }
-    }
 
-    Ok(())
+        Ok(())
+    }
 }
 
 mod builtin {
     use super::*;
 
-pub fn sway_new_workspaces() -> Result<()> {
-    let mut connection = Connection::new()?;
-    let mut max = 1;
-    let mut workspaces: Vec<i32> = Vec::new();
-
-    for w in connection.get_workspaces()? {
-        workspaces.push(w.num);
-    }
-
-    workspaces.sort_unstable();
-
-    for w in workspaces {
-        if w == max {
-            max += 1;
-        } else {
-            break;
+    pub fn process_command(cmd: &str) -> Result<()> {
+        match cmd {
+            "workspace_new" => sway_new_workspaces()?,
+            _ => warn!("Builtin command not supported"),
         }
+        Ok(())
     }
 
-    sway_send_command(&format!("workspace {}", max))?;
+    fn sway_new_workspaces() -> Result<()> {
+        let mut connection = Connection::new()?;
+        let mut max = 1;
+        let mut workspaces: Vec<i32> = Vec::new();
 
-    Ok(())
-}
+        for w in connection.get_workspaces()? {
+            workspaces.push(w.num);
+        }
+
+        workspaces.sort_unstable();
+
+        for w in workspaces {
+            if w == max {
+                max += 1;
+            } else {
+                break;
+            }
+        }
+
+        sway::process_command(&format!("workspace {}", max))?;
+
+        Ok(())
+    }
 }

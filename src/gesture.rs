@@ -1,5 +1,4 @@
 use anyhow::Result;
-use tokio::sync::mpsc;
 use input::event::gesture::GestureSwipeEvent::{Begin, End, Update};
 use input::event::gesture::{
     GestureEventCoordinates, GestureEventTrait, GestureSwipeBeginEvent, GestureSwipeEndEvent,
@@ -8,7 +7,7 @@ use input::event::gesture::{
 use std::f64::consts::PI;
 use tracing::{debug, trace};
 
-use crate::commands::InputCommand;
+use crate::commands::{CommandDesc, InputCommand};
 
 const SWIPE_DIST_THRESHOLD: f64 = 100.0;
 
@@ -16,7 +15,7 @@ pub struct SwaypedGesture<'a> {
     dx: f64,
     dy: f64,
     finger_count: i32,
-    tx: &'a mpsc::Sender<InputCommand>,
+    cmd_desc: &'a CommandDesc,
 }
 
 #[derive(Debug)]
@@ -28,12 +27,12 @@ enum SwaypedSwipeDir {
 }
 
 impl<'a> SwaypedGesture<'a> {
-    pub fn new(tx: &'a mpsc::Sender<InputCommand>) -> Self {
+    pub fn new(cmd_desc: &'a CommandDesc) -> Self {
         SwaypedGesture {
             dx: 0.0,
             dy: 0.0,
             finger_count: 0,
-            tx,
+            cmd_desc,
         }
     }
 
@@ -60,7 +59,7 @@ impl<'a> SwaypedGesture<'a> {
 
     async fn terminate(&self, event: &GestureSwipeEndEvent) -> Result<()> {
         trace!(finger_count = ?event.finger_count(), "terminate gesture");
-        debug!(?self.dx, ?self.dy, ?self.finger_count, "terminate gesture");
+        trace!(?self.dx, ?self.dy, ?self.finger_count, "terminate gesture");
         self.process_swipe().await?;
         Ok(())
     }
@@ -108,7 +107,7 @@ impl<'a> SwaypedGesture<'a> {
             None => return Ok(()),
         };
 
-        self.tx.send(cmd).await?;
+        self.cmd_desc.send(cmd).await?;
 
         Ok(())
     }

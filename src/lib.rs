@@ -1,4 +1,5 @@
 mod commands;
+mod config;
 mod gesture;
 mod pointer;
 
@@ -10,7 +11,6 @@ use input::event::GestureEvent::{Hold, Swipe};
 use input::event::PointerEvent::ScrollWheel;
 use input::{Event, Libinput, LibinputInterface};
 use libc::{O_RDWR, O_WRONLY};
-use tokio::sync::mpsc;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::os::unix::{
@@ -22,10 +22,12 @@ use tokio::io::unix::AsyncFd;
 use tokio::io::Ready;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::mpsc;
 use tracing::error;
 use tracing::trace;
 
-use crate::commands::InputCommand;
+use crate::commands::{CommandDesc, InputCommand};
+use crate::config::TomlConfig;
 use crate::pointer::pointer_handle_scroll_event;
 
 struct Interface;
@@ -82,12 +84,16 @@ impl AsyncLibinput {
     }
 }
 
-async fn process_event(event: &Event, gesture: &mut Box<SwaypedGesture<'_>>, tx: &mpsc::Sender<InputCommand>) {
+async fn process_event(
+    event: &Event,
+    gesture: &mut Box<SwaypedGesture<'_>>,
+    cmd_desc: &CommandDesc,
+) {
     trace!(?event, "Processing event:");
     let res = match event {
         Gesture(Hold(_)) => gesture.reset(),
         Gesture(Swipe(event)) => gesture.handle_event(event).await,
-        Pointer(ScrollWheel(event)) => pointer_handle_scroll_event(event, tx).await,
+        Pointer(ScrollWheel(event)) => pointer_handle_scroll_event(event, cmd_desc).await,
         _ => Ok(()),
     };
 
@@ -96,7 +102,7 @@ async fn process_event(event: &Event, gesture: &mut Box<SwaypedGesture<'_>>, tx:
     }
 }
 
-pub async fn run() -> io::Result<()> {
+pub async fn run(dry_run: bool, config_file: &str) -> io::Result<()> {
     let mut sigterm = signal(SignalKind::terminate()).unwrap_or_else(|err| {
         panic!("Failed to create SIGTERM signal: {}", err);
     });
@@ -116,21 +122,27 @@ pub async fn run() -> io::Result<()> {
         }),
     };
 
-    let (tx, mut rx) = mpsc::channel::<InputCommand>(8);
+    let config = TomlConfig::new(config_file).unwrap_or_else(|err| {
+        panic!("Failed to load configuration: {}", err);
+    });
 
-    let mut gesture = Box::new(SwaypedGesture::new(&tx));
+    let (tx, mut rx) = mpsc::channel::<InputCommand>(8);
+    let command_desc = CommandDesc::new(dry_run, config, tx);
+
+    let mut gesture = Box::new(SwaypedGesture::new(&command_desc));
     let mut events = Vec::new();
+
     loop {
         events.clear();
         select! {
             Ok(_) = input.read(&mut events) => {
                 for event in &events {
-                    process_event(event, &mut gesture, &tx).await;
+                    process_event(event, &mut gesture, &command_desc).await;
                 }
             },
 
             Some(cmd) = rx.recv() => {
-                cmd.process_command().unwrap_or_else(|err| {
+                cmd.process_command(&command_desc).unwrap_or_else(|err| {
                     error!(?err, "Failed to process command");
                 });
             },
