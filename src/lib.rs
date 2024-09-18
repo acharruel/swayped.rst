@@ -3,6 +3,8 @@ mod config;
 mod gesture;
 mod pointer;
 
+use anyhow::bail;
+use anyhow::Context;
 use anyhow::Result;
 use gesture::SwaypedGesture;
 use input::event::Event::Gesture;
@@ -18,12 +20,14 @@ use std::os::unix::{
     io::{FromRawFd, IntoRawFd, RawFd},
 };
 use std::path::Path;
+use std::path::PathBuf;
 use tokio::io::unix::AsyncFd;
 use tokio::io::Ready;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc;
 use tracing::error;
+use tracing::info;
 use tracing::trace;
 
 use crate::commands::{CommandDesc, InputCommand};
@@ -102,29 +106,28 @@ async fn process_event(
     }
 }
 
-pub async fn run(dry_run: bool, config_file: &str) -> io::Result<()> {
-    let mut sigterm = signal(SignalKind::terminate()).unwrap_or_else(|err| {
-        panic!("Failed to create SIGTERM signal: {}", err);
-    });
+pub async fn run(dry_run: bool, config_file: Option<String>) -> Result<()> {
+    let mut sigterm = signal(SignalKind::terminate()).context("Failed to create SIGTERM signal")?;
 
-    let mut sigint = signal(SignalKind::interrupt()).unwrap_or_else(|err| {
-        panic!("Failed to create SIGINT signal: {}", err);
-    });
+    let mut sigint = signal(SignalKind::interrupt()).context("Failed to create SIGINT signal")?;
 
     let mut input = Libinput::new_with_udev(Interface);
     let Ok(_) = input.udev_assign_seat("seat0") else {
-        panic!("Failed to assign seat");
+        bail!("Failed to assign seat");
     };
 
     let mut input = AsyncLibinput {
-        inner: AsyncFd::new(input).unwrap_or_else(|err| {
-            panic!("Failed to create async libinput: {}", err);
-        }),
+        inner: AsyncFd::new(input).context("Failed to create async libinput")?,
     };
 
-    let config = TomlConfig::new(config_file).unwrap_or_else(|err| {
-        panic!("Failed to load configuration: {}", err);
-    });
+    let config_file = match config_file {
+        Some(file) => PathBuf::from(file),
+        None => TomlConfig::config_dir().join("config.toml"),
+    };
+
+    info!(?config_file, "Starting swayped");
+
+    let config = TomlConfig::new(config_file)?;
 
     let (tx, mut rx) = mpsc::channel::<InputCommand>(8);
     let command_desc = CommandDesc::new(dry_run, config, tx);
@@ -148,17 +151,15 @@ pub async fn run(dry_run: bool, config_file: &str) -> io::Result<()> {
             },
 
             _ = sigterm.recv() => {
-                println!("\r");
                 break;
             },
 
             _ = sigint.recv() => {
-                println!("\r");
                 break;
             },
         }
     }
 
-    println!("Terminating program");
+    info!("Terminating program");
     Ok(())
 }

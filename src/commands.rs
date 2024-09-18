@@ -112,12 +112,12 @@ impl InputCommand {
     pub fn process_command(self, cmd_desc: &CommandDesc) -> Result<()> {
         let cmd = &cmd_desc.mappings.get(&self);
 
-        if cmd.is_none() {
+        let cmd = if let Some(cmd) = cmd {
+            cmd
+        } else {
             warn!(?self, "Command not in configuration");
             return Ok(());
-        }
-
-        let cmd = cmd.unwrap();
+        };
 
         if cmd_desc.dry_run {
             info!(?cmd, "Dry run, command: ");

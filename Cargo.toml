@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.72"
 clap = { version = "4.5.7", features = ["derive", "env"] }
-homedir = "0.3.3"
+dirs = "5.0.1"
 input = "0.7.1"
 libc = "0.2"
 serde = "1.0.210"

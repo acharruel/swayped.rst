@@ -1,10 +1,8 @@
-use anyhow::bail;
 use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
-use homedir::my_home;
 use syslog_tracing::Syslog;
-use tracing::{info, level_filters::LevelFilter};
+use tracing::level_filters::LevelFilter;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
@@ -54,28 +52,7 @@ pub fn setup_logging(log_level: &str, syslog: bool) -> Result<()> {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let args = Args::parse();
-
-    let config_file = match args.config_file {
-        Some(file) => file,
-        None => {
-            let home = my_home()?;
-            if let Some(home) = home {
-                let path = home.join(".config/swayped/config.toml");
-                if path.exists() {
-                    path.display().to_string()
-                } else {
-                    bail!("Could not find config file");
-                }
-            } else {
-                bail!("Could not determine home directory");
-            }
-        }
-    };
-
     setup_logging(&args.log_level, args.syslog)?;
-
-    info!(?config_file, "Starting swayped");
-
-    swayped::run(args.dry_run, &config_file).await?;
+    swayped::run(args.dry_run, args.config_file).await?;
     Ok(())
 }
