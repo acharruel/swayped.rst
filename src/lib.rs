@@ -1,14 +1,18 @@
 mod commands;
+mod config;
 mod gesture;
 mod pointer;
-mod swipe;
 
+use anyhow::bail;
+use anyhow::Context;
 use anyhow::Result;
+use gesture::SwaypedGesture;
 use input::event::Event::Gesture;
 use input::event::Event::Pointer;
+use input::event::GestureEvent::{Hold, Swipe};
+use input::event::PointerEvent::ScrollWheel;
 use input::{Event, Libinput, LibinputInterface};
 use libc::{O_RDWR, O_WRONLY};
-use tracing::error;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::os::unix::{
@@ -16,10 +20,19 @@ use std::os::unix::{
     io::{FromRawFd, IntoRawFd, RawFd},
 };
 use std::path::Path;
+use std::path::PathBuf;
 use tokio::io::unix::AsyncFd;
 use tokio::io::Ready;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::mpsc;
+use tracing::error;
+use tracing::info;
+use tracing::trace;
+
+use crate::commands::{CommandDesc, InputCommand};
+use crate::config::TomlConfig;
+use crate::pointer::pointer_handle_scroll_event;
 
 struct Interface;
 
@@ -75,12 +88,16 @@ impl AsyncLibinput {
     }
 }
 
-use gesture::*;
-use pointer::*;
-fn process_event(event: &Event, gesture: &mut Option<SwaypedGesture>) {
+async fn process_event(
+    event: &Event,
+    gesture: &mut Box<SwaypedGesture<'_>>,
+    cmd_desc: &CommandDesc,
+) {
+    trace!(?event, "Processing event:");
     let res = match event {
-        Gesture(gesture_event) => gesture_handle_event(gesture_event, gesture),
-        Pointer(pointer_event) => pointer_handle_event(pointer_event),
+        Gesture(Hold(_)) => gesture.reset(),
+        Gesture(Swipe(event)) => gesture.handle_event(event).await,
+        Pointer(ScrollWheel(event)) => pointer_handle_scroll_event(event, cmd_desc).await,
         _ => Ok(()),
     };
 
@@ -89,49 +106,60 @@ fn process_event(event: &Event, gesture: &mut Option<SwaypedGesture>) {
     }
 }
 
-pub async fn run() -> io::Result<()> {
-    let mut sigterm = signal(SignalKind::terminate()).unwrap_or_else(|err| {
-        panic!("Failed to create SIGTERM signal: {}", err);
-    });
+pub async fn run(dry_run: bool, config_file: Option<String>) -> Result<()> {
+    let mut sigterm = signal(SignalKind::terminate()).context("Failed to create SIGTERM signal")?;
 
-    let mut sigint = signal(SignalKind::interrupt()).unwrap_or_else(|err| {
-        panic!("Failed to create SIGINT signal: {}", err);
-    });
+    let mut sigint = signal(SignalKind::interrupt()).context("Failed to create SIGINT signal")?;
 
     let mut input = Libinput::new_with_udev(Interface);
     let Ok(_) = input.udev_assign_seat("seat0") else {
-        panic!("Failed to assign seat");
+        bail!("Failed to assign seat");
     };
 
     let mut input = AsyncLibinput {
-        inner: AsyncFd::new(input).unwrap_or_else(|err| {
-            panic!("Failed to create async libinput: {}", err);
-        }),
+        inner: AsyncFd::new(input).context("Failed to create async libinput")?,
     };
 
-    let mut gesture: Option<SwaypedGesture> = None;
+    let config_file = match config_file {
+        Some(file) => PathBuf::from(file),
+        None => TomlConfig::config_dir().join("config.toml"),
+    };
+
+    info!(?config_file, "Starting swayped");
+
+    let config = TomlConfig::new(config_file)?;
+
+    let (tx, mut rx) = mpsc::channel::<InputCommand>(8);
+    let command_desc = CommandDesc::new(dry_run, config, tx);
+
+    let mut gesture = Box::new(SwaypedGesture::new(&command_desc));
     let mut events = Vec::new();
+
     loop {
         events.clear();
         select! {
             Ok(_) = input.read(&mut events) => {
                 for event in &events {
-                    process_event(event, &mut gesture);
+                    process_event(event, &mut gesture, &command_desc).await;
                 }
             },
 
+            Some(cmd) = rx.recv() => {
+                cmd.process_command(&command_desc).unwrap_or_else(|err| {
+                    error!(?err, "Failed to process command");
+                });
+            },
+
             _ = sigterm.recv() => {
-                println!("\r");
                 break;
             },
 
             _ = sigint.recv() => {
-                println!("\r");
                 break;
             },
         }
     }
 
-    println!("Terminating program");
+    info!("Terminating program");
     Ok(())
 }
