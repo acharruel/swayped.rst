@@ -13,6 +13,7 @@ use input::event::GestureEvent::{Hold, Swipe};
 use input::event::PointerEvent::ScrollWheel;
 use input::{Event, Libinput, LibinputInterface};
 use libc::{O_RDWR, O_WRONLY};
+use tracing::warn;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::os::unix::{
@@ -54,21 +55,11 @@ impl LibinputInterface for Interface {
     }
 }
 
-pub struct AsyncLibinput {
-    inner: AsyncFd<Libinput>,
-}
+pub struct AsyncLibinput(AsyncFd<Libinput>);
 
 impl AsyncLibinput {
-    pub fn new(input: Libinput) -> Self {
-        Self {
-            inner: AsyncFd::new(input).unwrap_or_else(|err| {
-                panic!("Failed to create async libinput: {}", err);
-            }),
-        }
-    }
-
     pub async fn read(&mut self, events: &mut Vec<Event>) -> io::Result<usize> {
-        let mut guard = self.inner.readable_mut().await?;
+        let mut guard = self.0.readable_mut().await?;
         match guard.try_io(|inner| {
             inner.get_mut().dispatch()?;
             while let Some(event) = inner.get_mut().next() {
@@ -116,9 +107,7 @@ pub async fn run(dry_run: bool, config_file: Option<String>) -> Result<()> {
         bail!("Failed to assign seat");
     };
 
-    let mut input = AsyncLibinput {
-        inner: AsyncFd::new(input).context("Failed to create async libinput")?,
-    };
+    let mut input = AsyncLibinput(AsyncFd::new(input).context("Failed to create async libinput")?);
 
     let config_file = match config_file {
         Some(file) => PathBuf::from(file),
@@ -151,10 +140,14 @@ pub async fn run(dry_run: bool, config_file: Option<String>) -> Result<()> {
             },
 
             _ = sigterm.recv() => {
+                print!("\r");
+                warn!("Received SIGTERM signal");
                 break;
             },
 
             _ = sigint.recv() => {
+                print!("\r");
+                warn!("Received SIGINT signal");
                 break;
             },
         }
