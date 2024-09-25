@@ -8,6 +8,7 @@ use tracing::{debug, info, warn};
 
 use crate::config::TomlConfig;
 
+#[derive(Debug)]
 pub struct CommandDesc {
     dry_run: bool,
     tx: mpsc::Sender<InputCommand>,
@@ -112,11 +113,8 @@ impl InputCommand {
     pub fn process_command(self, cmd_desc: &CommandDesc) -> Result<()> {
         let cmd = &cmd_desc.mappings.get(&self);
 
-        let cmd = if let Some(cmd) = cmd {
-            cmd
-        } else {
-            warn!(?self, "Command not in configuration");
-            return Ok(());
+        let Some(cmd) = cmd else {
+            bail!("Command not in configuration: {:?}", self);
         };
 
         if cmd_desc.dry_run {
@@ -127,7 +125,7 @@ impl InputCommand {
         match cmd.cmd_type.as_str() {
             "sway" => sway::process_command(&cmd.cmd)?,
             "builtin" => builtin::process_command(&cmd.cmd)?,
-            _ => warn!("Command type not supported"),
+            cmd_type => warn!(?cmd_type, "Command type not supported"),
         }
 
         Ok(())
@@ -185,5 +183,56 @@ mod builtin {
         sway::process_command(&format!("workspace {}", max))?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::config::Mapping;
+
+    #[test]
+    fn test_command_desc_new() {
+        let (tx, _) = mpsc::channel(1);
+        let config = TomlConfig { mappings: vec![] };
+
+        let cmd_desc = CommandDesc::new(false, config, tx);
+
+        assert_eq!(cmd_desc.dry_run, false);
+        assert_eq!(cmd_desc.mappings.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_command_desc_recv() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let config = TomlConfig { mappings: vec![] };
+
+        let cmd_desc = CommandDesc::new(true, config, tx);
+
+        let cmd = InputCommand::SwipeUp(3);
+        let res = cmd_desc.send(cmd).await;
+        assert_eq!(res.is_ok(), true);
+
+        let cmd = rx.recv().await.unwrap();
+        assert_eq!(cmd, InputCommand::SwipeUp(3));
+    }
+
+    #[tokio::test]
+    async fn test_command_desc_process_fail() {
+        let (tx, _) = mpsc::channel(1);
+        let config = TomlConfig {
+            mappings: vec![Mapping {
+                gesture: "swipe_up".to_string(),
+                finger_count: Some(3),
+                cmd: "workspace_new".to_string(),
+                cmd_type: "sway".to_string(),
+            }],
+        };
+
+        let cmd_desc = CommandDesc::new(false, config, tx);
+
+        let cmd = InputCommand::SwipeDown(3);
+        let res = cmd.process_command(&cmd_desc);
+        assert_eq!(res.is_err(), true);
     }
 }

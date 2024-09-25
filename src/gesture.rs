@@ -112,3 +112,111 @@ impl<'a> SwaypedGesture<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use tokio::sync::mpsc;
+
+    use super::*;
+    use crate::{commands::CommandDesc, config::TomlConfig};
+
+    #[test]
+    fn test_swayped_gesture_new() {
+        let (tx, _) = mpsc::channel(1);
+        let config = TomlConfig { mappings: vec![] };
+
+        let cmd_desc = CommandDesc::new(false, config, tx);
+
+        let gesture = SwaypedGesture::new(&cmd_desc);
+
+        assert_eq!(gesture.dx, 0.0);
+        assert_eq!(gesture.dy, 0.0);
+        assert_eq!(gesture.finger_count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_swayped_gesture_reset() {
+        let (tx, _) = mpsc::channel(1);
+        let config = TomlConfig { mappings: vec![] };
+
+        let cmd_desc = CommandDesc::new(false, config, tx);
+
+        let mut gesture = SwaypedGesture::new(&cmd_desc);
+
+        gesture.dx = 10.0;
+        gesture.dy = 10.0;
+        gesture.finger_count = 3;
+
+        let res = gesture.reset();
+        assert_eq!(res.is_ok(), true);
+        assert_eq!(gesture.dx, 0.0);
+        assert_eq!(gesture.dy, 0.0);
+        assert_eq!(gesture.finger_count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_swayped_gesture_swipe_process() {
+        let (tx, _) = mpsc::channel(1);
+        let config = TomlConfig { mappings: vec![] };
+
+        let cmd_desc = CommandDesc::new(false, config, tx);
+
+        let mut gesture = SwaypedGesture::new(&cmd_desc);
+
+        gesture.dx = 100.0;
+        gesture.dy = 0.0;
+        gesture.finger_count = 3;
+
+        let res = gesture.process_swipe().await;
+        assert_eq!(res.is_ok(), true);
+
+        gesture.dx = 0.0;
+        gesture.dy = 100.0;
+        gesture.finger_count = 3;
+
+        let res = gesture.process_swipe().await;
+        assert_eq!(res.is_ok(), true);
+
+        gesture.dx = -100.0;
+        gesture.dy = 0.0;
+        gesture.finger_count = 3;
+
+        let res = gesture.process_swipe().await;
+        assert_eq!(res.is_ok(), true);
+
+        gesture.dx = 0.0;
+        gesture.dy = -100.0;
+        gesture.finger_count = 3;
+
+        let res = gesture.process_swipe().await;
+        assert_eq!(res.is_ok(), true);
+
+        gesture.dx = 100.0;
+        gesture.dy = 100.0;
+        gesture.finger_count = 3;
+
+        let res = gesture.process_swipe().await;
+        assert_eq!(res.is_ok(), true);
+
+        gesture.dx = -100.0;
+        gesture.dy = 100.0;
+        gesture.finger_count = 3;
+
+        let res = gesture.process_swipe().await;
+        assert_eq!(res.is_ok(), true);
+
+        gesture.dx = 100.0;
+        gesture.dy = -100.0;
+        gesture.finger_count = 3;
+
+        let res = gesture.process_swipe().await;
+        assert_eq!(res.is_ok(), true);
+
+        gesture.dx = -100.0;
+        gesture.dy = -100.0;
+        gesture.finger_count = 3;
+
+        let res = gesture.process_swipe().await;
+        assert_eq!(res.is_ok(), true);
+    }
+}

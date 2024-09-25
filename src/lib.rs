@@ -135,7 +135,7 @@ pub async fn run(dry_run: bool, config_file: Option<String>) -> Result<()> {
 
             Some(cmd) = rx.recv() => {
                 cmd.process_command(&command_desc).unwrap_or_else(|err| {
-                    error!(?err, "Failed to process command");
+                    warn!(?err, "Failed to process command");
                 });
             },
 

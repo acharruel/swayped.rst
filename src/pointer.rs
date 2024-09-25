@@ -1,5 +1,5 @@
 use anyhow::Result;
-use input::event::pointer::Axis::*;
+use input::event::pointer::Axis::Horizontal;
 use input::event::pointer::PointerScrollWheelEvent;
 use tracing::debug;
 
